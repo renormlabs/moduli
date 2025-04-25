@@ -1,3 +1,5 @@
+// Copyright (c) 2025 Renorm Labs. All rights reserved.
+
 package moduli
 
 import (

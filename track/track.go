@@ -1,3 +1,5 @@
+// Copyright (c) 2025 Renorm Labs. All rights reserved.
+
 // Package track provides mutation-tracking primitives used by moduli.
 //
 // End-users import this package only when they need to inspect or stream the

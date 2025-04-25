@@ -1,3 +1,5 @@
+// Copyright (c) 2025 Renorm Labs. All rights reserved.
+
 // Package moduli embraces the functional-options pattern and adds helpers for
 // composition, conditional logic, and—via the sub-package track—mutation
 // tracking.
