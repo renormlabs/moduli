@@ -3,7 +3,6 @@
 package track
 
 import (
-	"bytes"
 	"encoding/json"
 	"sync/atomic"
 	"testing"
@@ -45,16 +44,4 @@ func TestMemory_RegisterHookNil(t *testing.T) {
 
 	m.Track("noop", data{}, data{})
 	Assert(t, Equal(len(m.History()), 1))
-}
-
-type logCapture struct {
-	buf bytes.Buffer
-}
-
-func (l *logCapture) Write(p []byte) (int, error) {
-	return l.buf.Write(p)
-}
-
-func (l *logCapture) String() string {
-	return l.buf.String()
 }
