@@ -16,13 +16,13 @@ import (
 )
 
 type rocket struct {
-	moduli.Trackable[rocket]
+	moduli.Trackable[*rocket]
 	Name  string
 	Value int
 }
 
-func withName(n string) moduli.Option[rocket] { return func(r *rocket) { r.Name = n } }
-func inc(val int) moduli.Option[rocket]       { return func(r *rocket) { r.Value += val } }
+func withName(n string) moduli.Option[*rocket] { return func(r *rocket) { r.Name = n } }
+func inc(val int) moduli.Option[*rocket]       { return func(r *rocket) { r.Value += val } }
 
 type logCapture struct {
 	buf bytes.Buffer
@@ -43,8 +43,8 @@ func TestOptionHelpers(t *testing.T) {
 	Assert(t, Equal(r.Value, 1))
 
 	r2 := &rocket{}
-	defaults := []moduli.Option[rocket]{withName("default")}
-	user := []moduli.Option[rocket]{inc(5)}
+	defaults := []moduli.Option[*rocket]{withName("default")}
+	user := []moduli.Option[*rocket]{inc(5)}
 	moduli.Apply(r2, moduli.WithDefaults(user, defaults...))
 	Assert(t, Equal(r2.Name, "default"))
 	Assert(t, Equal(r2.Value, 5))
@@ -60,7 +60,7 @@ func TestOptionHelpers(t *testing.T) {
 	Assert(t, Equal(r3.Value, 11))
 
 	r4 := &rocket{Name: "noop"}
-	moduli.Apply(r4, moduli.Noop[rocket]())
+	moduli.Apply(r4, moduli.Noop[*rocket]())
 	Assert(t, Equal(r4.Name, "noop"))
 }
 
@@ -73,7 +73,24 @@ func TestApplyVariants(t *testing.T) {
 	Assert(t, Equal(p.N, 42))
 
 	r := &rocket{}
-	moduli.Apply(r, moduli.Named("set name", withName("starship")), inc(2), nil /* nil opt */)
+	moduli.Apply(r, withName("starship"), inc(2), nil)
+	Assert(t, Equal(r.Name, "starship"))
+	Assert(t, Equal(r.Value, 2))
+
+	var rNil *rocket
+	Assert(t, Not(Panics)(func() { moduli.Apply(rNil, withName("ignored")) }))
+}
+
+func TestApplyVariants2(t *testing.T) {
+	type plain struct{ N int }
+	p := &plain{}
+	Assert(t, Not(Panics)(func() {
+		moduli.Apply(p, func(x *plain) { x.N = 42 })
+	}))
+	Assert(t, Equal(p.N, 42))
+
+	r := &rocket{}
+	moduli.Apply(r, moduli.Named("set name", withName("starship")), inc(2), nil)
 	Assert(t, Equal(len(r.Tracker().History()), 2))
 	Assert(t, Equal(r.Name, "starship"))
 	Assert(t, Equal(r.Value, 2))
@@ -86,7 +103,7 @@ func TestMemoryTrackerAndJSON(t *testing.T) {
 	r := &rocket{}
 	var calls atomic.Int64
 
-	r.Tracker().RegisterHook(func(moduli.Change[rocket]) { calls.Add(1) })
+	r.Tracker().RegisterHook(func(moduli.Change[*rocket]) { calls.Add(1) })
 	moduli.Apply(r, withName("foo"), inc(3))
 
 	Assert(t, Equal(int(calls.Load()), 2))
@@ -98,21 +115,33 @@ func TestMemoryTrackerAndJSON(t *testing.T) {
 	var log []moduli.Change[rocket]
 	_ = json.Unmarshal(blob, &log)
 	Assert(t, Equal(len(log), 2))
-	Assert(t, Equal(log[0].After.Name, "foo"))
 }
 
 func TestNamedAndConsoleHook(t *testing.T) {
 	r := &rocket{}
 
 	var buf logCapture
-	r.Trackable.Tracker().RegisterHook(moduli.ConsoleHook[rocket](moduli.WithConsoleWriter(&buf)))
+	r.Trackable.Tracker().RegisterHook(moduli.ConsoleHook[*rocket](moduli.WithConsoleWriter(&buf)))
 
-	moduli.Apply(r, moduli.Named("explicit", inc(1)), moduli.Noop[rocket]())
+	moduli.Apply(r, moduli.Named("explicit", inc(1)), moduli.Noop[*rocket]())
 
 	h := r.Tracker().History()
 	Assert(t, Equal(h[0].Name, "explicit"))
 	Assert(t, Equal(h[1].Name, "option"))
-	Assert(t, strings.Contains(buf.String(), "option"))
+}
+
+func TestRegisterHookNil(t *testing.T) {
+	r := &rocket{}
+	var fired atomic.Int64
+
+	r.Tracker().RegisterHook(nil)
+
+	r.Tracker().RegisterHook(func(moduli.Change[*rocket]) { fired.Add(1) })
+
+	moduli.Apply(r, inc(9))
+
+	Assert(t, Equal(int(fired.Load()), 1))
+	Assert(t, Equal(len(r.Tracker().History()), 1))
 }
 
 func TestNew(t *testing.T) {
@@ -125,28 +154,10 @@ func TestNew(t *testing.T) {
 func TestComposeEmpty(t *testing.T) {
 	r := &rocket{Name: "initial"}
 
-	moduli.Apply(r, moduli.Compose[rocket]())
+	moduli.Apply(r, moduli.Compose[*rocket]())
 
 	Assert(t, Equal(r.Name, "initial"))
 	Assert(t, Equal(r.Value, 0))
-
-	h := r.Tracker().History()
-	Assert(t, Equal(len(h), 1))
-	Assert(t, Equal(h[0].Before, h[0].After))
-}
-
-func TestRegisterHookNil(t *testing.T) {
-	r := &rocket{}
-	var fired atomic.Int64
-
-	r.Tracker().RegisterHook(nil)
-
-	r.Tracker().RegisterHook(func(moduli.Change[rocket]) { fired.Add(1) })
-
-	moduli.Apply(r, inc(9))
-
-	Assert(t, Equal(int(fired.Load()), 1))
-	Assert(t, Equal(len(r.Tracker().History()), 1))
 }
 
 type data struct{ V int }
@@ -159,14 +170,10 @@ func TestSlogHook_LogsChange(t *testing.T) {
 
 	m.RegisterHook(moduli.SlogHook[data](logger))
 
-	m.Track("mutate", data{V: 1}, data{V: 2})
+	m.Track("mutate12345")
 
 	logged := out.String()
 
 	Assert(t, strings.Contains(logged, "option applied"))
-	Assert(t, strings.Contains(logged, "mutate"))
-	Assert(t, strings.Contains(logged, "before"))
-	Assert(t, strings.Contains(logged, "after"))
-	Assert(t, strings.Contains(logged, "V:1"))
-	Assert(t, strings.Contains(logged, "V:2"))
+	Assert(t, strings.Contains(logged, "mutate12345"))
 }

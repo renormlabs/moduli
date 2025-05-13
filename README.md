@@ -5,7 +5,7 @@
 1. **Build fluent configuration APIs** with the functional‑options pattern\
    (`Compose`, `If`, `Unless`, `WithDefaults`, …).
 2. **Follow every mutation** with *zero boiler‑plate*: embed\
-   `moduli.Trackable[T]` and you automatically get an in‑memory log.
+   `moduli.Trackable[*T]` and you automatically get an in‑memory log.
 
 Tracking is opt‑in and invisible when you don’t need it.
 
@@ -55,7 +55,7 @@ func main() {
 
     // Post‑hoc log
     for _, ev := range r.Tracker().History() {
-        fmt.Printf("%s ⇒ %#v → %#v\n", ev.Name, ev.Before, ev.After)
+        fmt.Println(ev.Name)
     }
 }
 ```

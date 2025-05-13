@@ -20,14 +20,13 @@ func TestMemory_Track_History_JSON(t *testing.T) {
 	m.RegisterHook(func(Change[data]) { fired.Add(1) })
 
 	// exercise Track twice
-	m.Track("inc", data{0}, data{1})
-	m.Track("inc", data{1}, data{2})
+	m.Track("inc")
+	m.Track("inc")
 
 	Assert(t, Equal(int(fired.Load()), 2))
 
 	hist := m.History()
 	Assert(t, Equal(len(hist), 2))
-	Assert(t, Equal(hist[1].After.V, 2))
 
 	blob, err := m.JSON()
 	Assert(t, Nil(err))
@@ -42,6 +41,6 @@ func TestMemory_RegisterHookNil(t *testing.T) {
 
 	Assert(t, Not(Panics)(func() { m.RegisterHook(nil) }))
 
-	m.Track("noop", data{}, data{})
+	m.Track("noop")
 	Assert(t, Equal(len(m.History()), 1))
 }
