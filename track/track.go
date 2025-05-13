@@ -15,17 +15,14 @@ import (
 // Public types & helpers
 //------------------------------------------------------------
 
-// Change represents a single mutation event: the option name, the before-state,
-// and the after-state.
+// Change represents a single mutation event (currently just the option name).
 type Change[T any] struct {
-	Name   string
-	Before T
-	After  T
+	Name string
 }
 
 // Tracker is implemented by types that can record before/after mutations.
 type Tracker[T any] interface {
-	Track(name string, before, after T)
+	Track(name string)
 }
 
 // Memory tracks all changes in memory and supports change hooks.
@@ -37,9 +34,9 @@ type Memory[T any] struct {
 
 // Track records a change and notifies all registered hooks. Safe for concurrent
 // callers to use.
-func (m *Memory[T]) Track(name string, before, after T) {
+func (m *Memory[T]) Track(name string) {
 	m.mu.Lock()
-	c := Change[T]{Name: name, Before: before, After: after}
+	c := Change[T]{Name: name}
 	m.history = append(m.history, c)
 	hooks := append([]func(Change[T]){}, m.hooks...) // copy for lock-free callbacks
 	m.mu.Unlock()

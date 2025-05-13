@@ -6,23 +6,25 @@
 package moduli
 
 import (
+	"reflect"
+
 	"renorm.dev/moduli/track"
 )
 
 // Option is a functional option that mutates a *T in place.
 // Typically used with [Apply] or [New] to construct or modify values fluently.
-type Option[T any] func(*T)
+type Option[T any] func(T)
 
 // Noop returns an option that does nothing. Useful for conditional logic or
 // default placeholders.
 func Noop[T any]() Option[T] {
-	return func(*T) {}
+	return func(T) {}
 }
 
 // IfElse applies either the yes or no option based on the result of cond. The
 // selected option is applied to the target in-place.
 func IfElse[T any](cond func() bool, yes, no Option[T]) Option[T] {
-	return func(t *T) {
+	return func(t T) {
 		if cond() {
 			yes(t)
 		} else {
@@ -43,7 +45,7 @@ func Compose[T any](opts ...Option[T]) Option[T] {
 	if len(opts) == 0 {
 		return Noop[T]()
 	}
-	return func(t *T) {
+	return func(t T) {
 		for _, o := range opts {
 			if o != nil {
 				o(t)
@@ -61,8 +63,9 @@ func WithDefaults[T any](opts []Option[T], defaults ...Option[T]) Option[T] {
 
 // Apply applies each option to the target in order. If the target supports
 // mutation tracking (via [Trackable]), changes are recorded.
-func Apply[T any](target *T, opts ...Option[T]) {
-	if target == nil {
+func Apply[T any](target T, opts ...Option[T]) {
+	val := reflect.ValueOf(target)
+	if val.Kind() == reflect.Ptr && val.IsNil() {
 		return
 	}
 
@@ -75,19 +78,16 @@ func Apply[T any](target *T, opts ...Option[T]) {
 		if opt == nil {
 			continue
 		}
-		if tr == nil {
-			opt(target)
-			continue
+		if tr != nil {
+			tr.Track(optionName(opt))
 		}
-
-		before := *target
 		opt(target)
-		tr.Track(optionName(opt), before, *target)
+
 	}
 }
 
 // New allocates zero T, applies each [Option] via [Apply], and returns the *T.
-func New[T any](opts ...Option[T]) *T {
+func New[T any](opts ...Option[*T]) *T {
 	var v T
 	Apply(&v, opts...)
 	return &v
